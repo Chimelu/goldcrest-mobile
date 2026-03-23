@@ -12,7 +12,11 @@
       "backgroundColor": "#050816"
     },
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.chimus.goldcrest",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "usesCleartextTraffic": true,
@@ -20,15 +24,21 @@
         "backgroundColor": "#050816",
         "foregroundImage": "./assets/images/goldcrest-logo.png"
       },
-      "package": "com.chimelu.goldcrestmobile"
+      "package": "com.chimus.goldcrest"
     },
     "web": {
       "favicon": "./assets/images/goldcrest-logo.png"
     },
     "extra": {
       "eas": {
-        "projectId": "4510ddad-24da-4363-9375-80727d0c46e0"
+        "projectId": "490b44e2-f5a8-4b6e-8d16-cca9a863262d"
       }
+    },
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/490b44e2-f5a8-4b6e-8d16-cca9a863262d"
     }
   }
 }
