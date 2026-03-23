@@ -4,7 +4,7 @@
     "slug": "goldcrest-mobile",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/goldcrest-logo.png",
+    "icon": "./assets/appstore.png",
     "userInterfaceStyle": "dark",
     "splash": {
       "image": "./assets/images/goldcrest-logo.png",
@@ -22,7 +22,9 @@
       "usesCleartextTraffic": true,
       "adaptiveIcon": {
         "backgroundColor": "#050816",
-        "foregroundImage": "./assets/images/goldcrest-logo.png"
+        "foregroundImage": "./assets/android-icon-foreground.png",
+        "backgroundImage": "./assets/android-icon-background.png",
+        "monochromeImage": "./assets/android-icon-monochrome.png"
       },
       "package": "com.chimus.goldcrest"
     },

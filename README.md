@@ -246,7 +246,7 @@ Build for development (with native modules):
 
 
 Build for preview/testing
-      eas build --profile preview --platform ios
+   eas build --profile preview --platform ios
    # or
    eas build --profile preview --platform android
 
