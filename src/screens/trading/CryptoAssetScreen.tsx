@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -10,9 +10,16 @@ import {
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../navigation';
+import { useFocusEffect } from '@react-navigation/native';
 import { assets } from '../../data/tradingAssets';
 import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
 import { useCryptoPrices } from '../../context/CryptoPricesContext';
+import { usePortfolio } from '../../context/PortfolioContext';
+import { useAccess } from '../../context/AccessContext';
+import {
+  formatCryptoQuantity,
+  getCryptoQuantityForTicker,
+} from '../../utils/portfolioHelpers';
 import {
   type ChartPeriod,
   fetchAssetChartUsd,
@@ -25,6 +32,14 @@ type Props = NativeStackScreenProps<RootStackParamList, 'Asset'>;
 const CryptoAssetScreen: React.FC<Props> = ({ route, navigation }) => {
   const { id } = route.params;
   const { getQuote } = useCryptoPrices();
+  const { summary, refresh } = usePortfolio();
+  const { canTransact } = useAccess();
+
+  useFocusEffect(
+    useCallback(() => {
+      void refresh();
+    }, [refresh]),
+  );
 
   const asset = useMemo(
     () => assets.find(a => a.id === id),
@@ -32,6 +47,9 @@ const CryptoAssetScreen: React.FC<Props> = ({ route, navigation }) => {
   );
 
   const quote = asset ? getQuote(asset) : null;
+  const heldAmount = asset
+    ? getCryptoQuantityForTicker(summary, asset.fromTicker)
+    : 0;
   const isPositive =
     quote?.change24hPercent != null
       ? quote.change24hPercent >= 0
@@ -244,24 +262,50 @@ const CryptoAssetScreen: React.FC<Props> = ({ route, navigation }) => {
           </View>
         </View>
 
-        <View style={styles.actionsRow}>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.buyButton]}
-            onPress={() =>
-              navigation.navigate('Trade', { id: asset.id, side: 'buy' })
-            }
-          >
-            <Text style={styles.actionButtonTextDark}>Buy</Text>
-          </TouchableOpacity>
-          <TouchableOpacity
-            style={[styles.actionButton, styles.sellButton]}
-            onPress={() =>
-              navigation.navigate('Trade', { id: asset.id, side: 'sell' })
-            }
-          >
-            <Text style={styles.actionButtonTextDark}>Sell</Text>
-          </TouchableOpacity>
-        </View>
+        {heldAmount > 0 && quote ? (
+          <View style={styles.demoHoldCard}>
+            <Text style={styles.demoHoldLabel}>Your balance</Text>
+            <Text style={styles.demoHoldMain}>
+              {formatCryptoQuantity(asset.fromTicker, heldAmount)}{' '}
+              {asset.fromTicker}
+            </Text>
+            <Text style={styles.demoHoldSub}>
+              ≈ $
+              {(heldAmount * quote.priceUsd).toLocaleString('en-US', {
+                minimumFractionDigits: 2,
+                maximumFractionDigits: 2,
+              })}{' '}
+              at current price
+            </Text>
+          </View>
+        ) : (
+          <View style={styles.demoHoldCardMuted}>
+            <Text style={styles.demoHoldMutedText}>
+              {"You don't hold this asset yet. Buy from Trade when execution is enabled; balances sync from your account wallet."}
+            </Text>
+          </View>
+        )}
+
+        {canTransact ? (
+          <View style={styles.actionsRow}>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.buyButton]}
+              onPress={() =>
+                navigation.navigate('Trade', { id: asset.id, side: 'buy' })
+              }
+            >
+              <Text style={styles.actionButtonTextDark}>Buy</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.actionButton, styles.sellButton]}
+              onPress={() =>
+                navigation.navigate('Trade', { id: asset.id, side: 'sell' })
+              }
+            >
+              <Text style={styles.actionButtonTextDark}>Sell</Text>
+            </TouchableOpacity>
+          </View>
+        ) : null}
 
         <View style={styles.infoCard}>
           <Text style={styles.infoTitle}>About {asset.name}</Text>
@@ -430,6 +474,41 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
     color: '#F9FAFB',
+  },
+  demoHoldCard: {
+    borderRadius: 16,
+    padding: 14,
+    backgroundColor: 'rgba(245, 196, 81, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 196, 81, 0.35)',
+  },
+  demoHoldCardMuted: {
+    borderRadius: 16,
+    padding: 12,
+    backgroundColor: 'rgba(31, 41, 55, 0.5)',
+    borderWidth: 1,
+    borderColor: 'rgba(148, 163, 184, 0.25)',
+  },
+  demoHoldLabel: {
+    fontSize: 11,
+    color: '#F5C451',
+    fontWeight: '600',
+    marginBottom: 4,
+  },
+  demoHoldMain: {
+    fontSize: 16,
+    fontWeight: '700',
+    color: '#F9FAFB',
+  },
+  demoHoldSub: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    marginTop: 4,
+  },
+  demoHoldMutedText: {
+    fontSize: 12,
+    color: '#9CA3AF',
+    lineHeight: 18,
   },
   actionsRow: {
     flexDirection: 'row',

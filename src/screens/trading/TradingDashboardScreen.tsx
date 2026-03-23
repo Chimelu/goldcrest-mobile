@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -8,15 +8,23 @@ import {
   Image,
   LayoutChangeEvent,
   TouchableOpacity,
+  ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import Svg, { Defs, LinearGradient, Path, Stop } from 'react-native-svg';
-import { useNavigation } from '@react-navigation/native';
+import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { assets, AssetItem } from '../../data/tradingAssets';
 import { portfolioChartData } from './PortfolioChart/data/chart';
 import type { RootStackParamList } from '../../navigation';
 import { useCryptoPrices } from '../../context/CryptoPricesContext';
+import { usePortfolio } from '../../context/PortfolioContext';
+import { useAccess } from '../../context/AccessContext';
+import {
+  computePortfolioTotals,
+  enrichHoldings,
+  formatCryptoQuantity,
+} from '../../utils/portfolioHelpers';
 import { formatUsdPrice } from '../../services/coinGecko';
 
 type Navigation = NativeStackNavigationProp<RootStackParamList>;
@@ -24,17 +32,36 @@ type Navigation = NativeStackNavigationProp<RootStackParamList>;
 const TradingDashboardScreen: React.FC = () => {
   const navigation = useNavigation<Navigation>();
   const { getQuote, loading, error, quotesByAssetId } = useCryptoPrices();
+  const { summary, loading: portfolioLoading, error: portfolioError, refresh } =
+    usePortfolio();
+  const { canTransact } = useAccess();
+
+  useFocusEffect(
+    useCallback(() => {
+      void refresh();
+    }, [refresh]),
+  );
 
   const cryptoAssets = useMemo(
     () => assets.filter(item => item.type === 'crypto'),
     [],
   );
 
-  const totalPortfolioValue = useMemo(
-    () =>
-      cryptoAssets.reduce((sum, asset) => sum + getQuote(asset).priceUsd, 0),
-    [cryptoAssets, getQuote, quotesByAssetId],
+  const enrichedHoldings = useMemo(
+    () => (summary ? enrichHoldings(summary.holdings) : []),
+    [summary],
   );
+
+  const portfolioTotals = useMemo(() => {
+    if (!summary) {
+      return { cashUsd: 0, cryptoValueUsd: 0, totalUsd: 0 };
+    }
+    return computePortfolioTotals(
+      summary.availableUsd,
+      enrichedHoldings,
+      getQuote,
+    );
+  }, [summary, enrichedHoldings, getQuote, quotesByAssetId]);
 
   const [chartWidth, setChartWidth] = useState(0);
   const chartHeight = 100;
@@ -83,16 +110,33 @@ const TradingDashboardScreen: React.FC = () => {
         contentContainerStyle={styles.content}
         showsVerticalScrollIndicator={false}
       >
-        <View style={styles.chartSection}>
+        {canTransact ? (
+          <View style={styles.chartSection}>
           <Text style={styles.sectionTitle}>Crypto portfolio</Text>
           <Text style={styles.totalLabel}>Total balance</Text>
-          <Text style={styles.totalValue}>
-            $
-            {totalPortfolioValue.toLocaleString('en-US', {
-              minimumFractionDigits: 2,
-              maximumFractionDigits: 2,
-            })}
-          </Text>
+          {portfolioLoading ? (
+            <ActivityIndicator color="#F5C451" style={{ marginVertical: 8 }} />
+          ) : (
+            <>
+              <Text style={styles.totalValue}>
+                $
+                {portfolioTotals.totalUsd.toLocaleString('en-US', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </Text>
+              <Text style={styles.portfolioBreakdown}>
+                ${portfolioTotals.cashUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+                cash + ${portfolioTotals.cryptoValueUsd.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}{' '}
+                in crypto
+              </Text>
+            </>
+          )}
+          {portfolioError ? (
+            <Text style={styles.portfolioErrorText} numberOfLines={3}>
+              {portfolioError}
+            </Text>
+          ) : null}
           {loading && (
             <Text style={styles.priceHint} numberOfLines={2}>
               Loading live prices from CoinGecko…
@@ -158,7 +202,70 @@ const TradingDashboardScreen: React.FC = () => {
               </Svg>
             )}
           </View>
-        </View>
+          </View>
+        ) : null}
+
+        {canTransact ? (
+          <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Your holdings</Text>
+          <Text style={styles.holdingsSub}>
+            From your account wallet (open Trade once to create it if new).
+          </Text>
+          {!portfolioLoading && !portfolioError && enrichedHoldings.length === 0 ? (
+            <Text style={styles.holdingsEmpty}>
+              No crypto yet. Use Buy on an asset to trade when execution is live.
+            </Text>
+          ) : null}
+          {enrichedHoldings.map(({ asset, amount }, index) => {
+            const quote = getQuote(asset);
+            const valueUsd = amount * quote.priceUsd;
+            const changeLabel =
+              quote.change24hPercent != null
+                ? `${quote.change24hPercent >= 0 ? '+' : ''}${quote.change24hPercent.toFixed(2)}%`
+                : asset.change;
+            const isUp =
+              quote.change24hPercent != null
+                ? quote.change24hPercent >= 0
+                : !asset.change.startsWith('-');
+            const isLast = index === enrichedHoldings.length - 1;
+            return (
+              <TouchableOpacity
+                key={asset.id}
+                style={[styles.holdingRow, isLast && styles.holdingRowLast]}
+                activeOpacity={0.8}
+                onPress={() => navigation.navigate('Asset', { id: asset.id })}
+              >
+                <View style={styles.rowLeft}>
+                  <Image source={{ uri: asset.imageURL }} style={styles.rowImage} />
+                  <View>
+                    <Text style={styles.rowName}>{asset.name}</Text>
+                    <Text style={styles.rowPair}>
+                      {formatCryptoQuantity(asset.fromTicker, amount)} {asset.fromTicker}
+                    </Text>
+                  </View>
+                </View>
+                <View style={styles.rowRight}>
+                  <Text style={styles.rowPrice}>
+                    $
+                    {valueUsd.toLocaleString('en-US', {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.rowChange,
+                      isUp ? styles.positive : styles.negative,
+                    ]}
+                  >
+                    {changeLabel}
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            );
+          })}
+          </View>
+        ) : null}
 
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Crypto watchlist</Text>
@@ -319,7 +426,39 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#F9FAFB',
     marginTop: 2,
+    marginBottom: 4,
+  },
+  portfolioBreakdown: {
+    fontSize: 11,
+    color: '#6B7280',
     marginBottom: 10,
+  },
+  holdingsSub: {
+    fontSize: 11,
+    color: '#6B7280',
+    marginTop: -4,
+    marginBottom: 12,
+  },
+  holdingRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    paddingVertical: 10,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    borderBottomColor: 'rgba(31, 41, 55, 0.8)',
+  },
+  holdingRowLast: {
+    borderBottomWidth: 0,
+  },
+  holdingsEmpty: {
+    fontSize: 12,
+    color: '#6B7280',
+    marginBottom: 8,
+  },
+  portfolioErrorText: {
+    fontSize: 11,
+    color: '#F87171',
+    marginBottom: 8,
   },
   priceHint: {
     fontSize: 11,

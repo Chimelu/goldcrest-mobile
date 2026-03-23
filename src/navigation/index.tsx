@@ -9,6 +9,8 @@ import OnboardingScreen from '../screens/onboarding/OnboardingScreen';
 import CreateAccountScreen from '../screens/auth/CreateAccountScreen';
 import LoginScreen from '../screens/auth/LoginScreen';
 import OtpScreen from '../screens/auth/OtpScreen';
+import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
+import ResetPasswordScreen from '../screens/auth/ResetPasswordScreen';
 import TradingDashboardScreen from '../screens/trading/TradingDashboardScreen';
 import CryptoAssetScreen from '../screens/trading/CryptoAssetScreen';
 import TradeScreen from '../screens/trading/TradeScreen';
@@ -19,13 +21,16 @@ import KycScreen from '../screens/profile/KycScreen';
 import NewsScreen from '../screens/news/NewsScreen';
 import NewsDetailScreen from '../screens/news/NewsDetailScreen';
 import WalletScreen from '../screens/wallet/WalletScreen';
+import { useAccess } from '../context/AccessContext';
 
 export type RootStackParamList = {
   Splash: undefined;
   Onboarding: undefined;
   CreateAccount: undefined;
   Login: undefined;
-  Otp: { email?: string } | undefined;
+  ForgotPassword: undefined;
+  Otp: { email?: string; flow?: 'register' | 'passwordReset' } | undefined;
+  ResetPassword: { resetToken: string };
   Main: undefined;
   Asset: { id: string };
   Trade: { id: string; side: 'buy' | 'sell' };
@@ -58,6 +63,7 @@ type MainTabParamList = {
 const Tab = createBottomTabNavigator<MainTabParamList>();
 
 const MainTabs: React.FC = () => {
+  const { canTransact } = useAccess();
   return (
     <Tab.Navigator
       screenOptions={({ route }) => ({
@@ -113,7 +119,9 @@ const MainTabs: React.FC = () => {
       })}
     >
       <Tab.Screen name="Home" component={TradingDashboardScreen} />
-      <Tab.Screen name="Wallet" component={WalletScreen} />
+      {canTransact ? (
+        <Tab.Screen name="Wallet" component={WalletScreen} />
+      ) : null}
       <Tab.Screen name="Profile" component={ProfileScreen} />
       <Tab.Screen name="News" component={NewsScreen} />
     </Tab.Navigator>
@@ -131,7 +139,9 @@ const RootNavigator: React.FC = () => {
         <Stack.Screen name="Onboarding" component={OnboardingScreen} />
         <Stack.Screen name="CreateAccount" component={CreateAccountScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />
+        <Stack.Screen name="ForgotPassword" component={ForgotPasswordScreen} />
         <Stack.Screen name="Otp" component={OtpScreen} />
+        <Stack.Screen name="ResetPassword" component={ResetPasswordScreen} />
         <Stack.Screen name="Main" component={MainTabs} />
         <Stack.Screen name="Asset" component={CryptoAssetScreen} />
         <Stack.Screen name="Trade" component={TradeScreen} />

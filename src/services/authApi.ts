@@ -38,10 +38,32 @@ type ApiError = {
 };
 
 export type LoginError = Error & { requiresVerification?: boolean };
+export type LoginResponse = {
+  token: string;
+  user?: {
+    id?: number;
+    email?: string;
+    fullName?: string | null;
+    isVerified?: boolean;
+    canTransact?: boolean;
+  };
+};
+
+export type ProfileResponse = {
+  id?: number;
+  email?: string;
+  fullName?: string | null;
+  isVerified?: boolean;
+  canTransact?: boolean;
+};
 let authToken: string | null = null;
 
 export function setAuthToken(token: string | null) {
   authToken = token;
+}
+
+export function getAuthToken(): string | null {
+  return authToken;
 }
 
 function authHeader() {
@@ -128,6 +150,93 @@ export async function resendRegistrationOtp(email: string) {
   return json;
 }
 
+export async function requestPasswordReset(email: string) {
+  let res: Response;
+  try {
+    res = await fetch(apiUrl('/auth/forgot-password'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.trim().toLowerCase() }),
+    });
+  } catch (e) {
+    if (e instanceof TypeError) {
+      throw new Error(networkErrorMessage());
+    }
+    throw e;
+  }
+  const json = (await parseJson(res)) as ApiError;
+  if (!res.ok) {
+    throw new Error(json.message || 'Could not request reset');
+  }
+  return json;
+}
+
+export async function resendPasswordResetOtp(email: string) {
+  let res: Response;
+  try {
+    res = await fetch(apiUrl('/auth/resend-password-reset'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.trim().toLowerCase() }),
+    });
+  } catch (e) {
+    if (e instanceof TypeError) {
+      throw new Error(networkErrorMessage());
+    }
+    throw e;
+  }
+  const json = (await parseJson(res)) as ApiError;
+  if (!res.ok) {
+    throw new Error(json.message || 'Could not resend code');
+  }
+  return json;
+}
+
+export async function verifyResetPasswordOtp(email: string, otp: string) {
+  let res: Response;
+  try {
+    res = await fetch(apiUrl('/auth/verify-reset-otp'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: email.trim().toLowerCase(), otp }),
+    });
+  } catch (e) {
+    if (e instanceof TypeError) {
+      throw new Error(networkErrorMessage());
+    }
+    throw e;
+  }
+  const json = (await parseJson(res)) as ApiError & { resetToken?: string };
+  if (!res.ok) {
+    throw new Error(json.message || 'Verification failed');
+  }
+  if (!json.resetToken) {
+    throw new Error('No reset token returned');
+  }
+  return json;
+}
+
+export async function resetPasswordWithToken(resetToken: string, newPassword: string) {
+  let res: Response;
+  try {
+    res = await fetch(apiUrl('/auth/reset-password'), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ resetToken, newPassword }),
+    });
+  } catch (e) {
+    if (e instanceof TypeError) {
+      throw new Error(networkErrorMessage());
+    }
+    throw e;
+  }
+  const json = (await parseJson(res)) as ApiError;
+  if (!res.ok) {
+    throw new Error(json.message || 'Could not reset password');
+  }
+  return json;
+}
+
 export async function loginUser(payload: LoginPayload) {
   let res: Response;
   try {
@@ -143,9 +252,7 @@ export async function loginUser(payload: LoginPayload) {
     throw e;
   }
 
-  const json = (await parseJson(res)) as ApiError & {
-    token?: string;
-  };
+  const json = (await parseJson(res)) as ApiError & LoginResponse;
 
   if (res.status === 403 && json.requiresVerification) {
     const err = new Error(
@@ -162,7 +269,7 @@ export async function loginUser(payload: LoginPayload) {
     throw new Error('No token returned');
   }
   setAuthToken(json.token);
-  return json;
+  return json as LoginResponse;
 }
 
 export async function getProfile() {
@@ -178,15 +285,11 @@ export async function getProfile() {
     }
     throw e;
   }
-  const json = (await parseJson(res)) as ApiError & {
-    fullName?: string | null;
-    email?: string;
-    isVerified?: boolean;
-  };
+  const json = (await parseJson(res)) as ApiError & ProfileResponse;
   if (!res.ok) {
     throw new Error(json.message || 'Could not fetch profile');
   }
-  return json;
+  return json as ProfileResponse;
 }
 
 export async function updateProfile(payload: ProfilePayload) {

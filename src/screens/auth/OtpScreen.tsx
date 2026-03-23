@@ -1,4 +1,4 @@
-import React, { useCallback, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -13,18 +13,30 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../navigation';
 import {
+  resendPasswordResetOtp,
   resendRegistrationOtp,
   verifyRegistrationOtp,
+  verifyResetPasswordOtp,
 } from '../../services/authApi';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Otp'>;
 
 const OtpScreen: React.FC<Props> = ({ navigation, route }) => {
   const email = route.params?.email ?? '';
+  const flow = route.params?.flow ?? 'register';
+  const isPasswordReset = flow === 'passwordReset';
+
   const [code, setCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const subtitle = useMemo(() => {
+    if (isPasswordReset) {
+      return `Enter the 6-digit code we sent to ${email || 'your email'} to reset your password.`;
+    }
+    return `We’ve sent a 6‑digit code to ${email || 'your email'}. Enter it below to verify your account.`;
+  }, [email, isPasswordReset]);
 
   const onVerify = async () => {
     const digits = code.replace(/\D/g, '').slice(0, 6);
@@ -33,17 +45,23 @@ const OtpScreen: React.FC<Props> = ({ navigation, route }) => {
       return;
     }
     if (!email) {
-      setError('Missing email. Go back and create your account again.');
+      setError('Missing email. Go back and try again.');
       return;
     }
     try {
       setLoading(true);
       setError(null);
-      await verifyRegistrationOtp(email, digits);
-      navigation.reset({
-        index: 0,
-        routes: [{ name: 'Login' }],
-      });
+      if (isPasswordReset) {
+        const result = await verifyResetPasswordOtp(email, digits);
+        const token = result.resetToken as string;
+        navigation.replace('ResetPassword', { resetToken: token });
+      } else {
+        await verifyRegistrationOtp(email, digits);
+        navigation.reset({
+          index: 0,
+          routes: [{ name: 'Login' }],
+        });
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Verification failed');
     } finally {
@@ -56,13 +74,17 @@ const OtpScreen: React.FC<Props> = ({ navigation, route }) => {
     try {
       setResending(true);
       setError(null);
-      await resendRegistrationOtp(email);
+      if (isPasswordReset) {
+        await resendPasswordResetOtp(email);
+      } else {
+        await resendRegistrationOtp(email);
+      }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Could not resend');
     } finally {
       setResending(false);
     }
-  }, [email]);
+  }, [email, isPasswordReset]);
 
   return (
     <KeyboardAvoidingView
@@ -74,11 +96,10 @@ const OtpScreen: React.FC<Props> = ({ navigation, route }) => {
         contentContainerStyle={styles.container}
         keyboardShouldPersistTaps="handled"
       >
-        <Text style={styles.title}>Verify it’s you</Text>
-        <Text style={styles.subtitle}>
-          We’ve sent a 6‑digit code to {email || 'your email'}. Enter it below to verify
-          your account.
+        <Text style={styles.title}>
+          {isPasswordReset ? 'Reset password' : 'Verify it’s you'}
         </Text>
+        <Text style={styles.subtitle}>{subtitle}</Text>
 
         <Text style={styles.label}>Verification code</Text>
         <TextInput
@@ -102,7 +123,9 @@ const OtpScreen: React.FC<Props> = ({ navigation, route }) => {
           {loading ? (
             <ActivityIndicator color="#111827" />
           ) : (
-            <Text style={styles.primaryLabel}>Verify & continue</Text>
+            <Text style={styles.primaryLabel}>
+              {isPasswordReset ? 'Verify code' : 'Verify & continue'}
+            </Text>
           )}
         </TouchableOpacity>
 
@@ -117,6 +140,15 @@ const OtpScreen: React.FC<Props> = ({ navigation, route }) => {
             <Text style={styles.secondaryLabel}>Resend code</Text>
           )}
         </TouchableOpacity>
+
+        {isPasswordReset ? (
+          <TouchableOpacity
+            style={styles.secondaryButton}
+            onPress={() => navigation.navigate('ForgotPassword')}
+          >
+            <Text style={styles.secondaryLabel}>Use a different email</Text>
+          </TouchableOpacity>
+        ) : null}
       </ScrollView>
     </KeyboardAvoidingView>
   );

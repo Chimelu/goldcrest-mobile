@@ -12,10 +12,12 @@ import {
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../navigation';
 import { isLoginVerificationError, loginUser } from '../../services/authApi';
+import { useAccess } from '../../context/AccessContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Login'>;
 
 const LoginScreen: React.FC<Props> = ({ navigation }) => {
+  const { setCanTransact } = useAccess();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -29,10 +31,11 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
     try {
       setLoading(true);
       setError(null);
-      await loginUser({
+      const result = await loginUser({
         email: email.trim().toLowerCase(),
         password,
       });
+      setCanTransact(Boolean(result.user?.canTransact));
       navigation.reset({
         index: 0,
         routes: [{ name: 'Main' }],
@@ -56,7 +59,7 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
       <ScrollView
         style={styles.flex}
         contentContainerStyle={styles.container}
-        keyboardShouldPersistTaps="handled"
+        keyboardShouldPersistTaps="always"
       >
         <Text style={styles.title}>Welcome back</Text>
         <Text style={styles.subtitle}>
@@ -85,7 +88,14 @@ const LoginScreen: React.FC<Props> = ({ navigation }) => {
             style={styles.input}
           />
 
-          <TouchableOpacity style={styles.forgotButton}>
+          <TouchableOpacity
+            style={styles.forgotButton}
+            activeOpacity={0.7}
+            hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+            onPress={() => {
+              navigation.navigate('ForgotPassword');
+            }}
+          >
             <Text style={styles.forgotLabel}>Forgot password?</Text>
           </TouchableOpacity>
         </View>
@@ -156,6 +166,8 @@ const styles = StyleSheet.create({
   forgotButton: {
     alignSelf: 'flex-end',
     marginTop: 4,
+    paddingVertical: 8,
+    paddingHorizontal: 4,
   },
   forgotLabel: {
     fontSize: 12,

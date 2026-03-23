@@ -19,10 +19,16 @@
       "adaptiveIcon": {
         "backgroundColor": "#050816",
         "foregroundImage": "./assets/images/goldcrest-logo.png"
-      }
+      },
+      "package": "com.chimelu.goldcrestmobile"
     },
     "web": {
       "favicon": "./assets/images/goldcrest-logo.png"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "4510ddad-24da-4363-9375-80727d0c46e0"
+      }
     }
   }
 }

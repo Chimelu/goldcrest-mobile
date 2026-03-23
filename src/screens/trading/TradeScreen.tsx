@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import {
   View,
   Text,
@@ -8,18 +8,37 @@ import {
   KeyboardAvoidingView,
   Platform,
   TouchableOpacity,
+  Alert,
+  ActivityIndicator,
 } from 'react-native';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../navigation';
+import { useFocusEffect } from '@react-navigation/native';
 import { assets } from '../../data/tradingAssets';
 import { useCryptoPrices } from '../../context/CryptoPricesContext';
+import { usePortfolio } from '../../context/PortfolioContext';
+import { useAccess } from '../../context/AccessContext';
+import {
+  formatCryptoQuantity,
+  getCryptoQuantityForTicker,
+} from '../../utils/portfolioHelpers';
 import { formatUsdPrice } from '../../services/coinGecko';
+import { buyCrypto, sellCrypto } from '../../services/portfolioApi';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Trade'>;
 
 const TradeScreen: React.FC<Props> = ({ route, navigation }) => {
   const { id, side } = route.params;
   const { getQuote, quotesByAssetId } = useCryptoPrices();
+  const { summary, loading: portfolioLoading, error: portfolioError, refresh } =
+    usePortfolio();
+  const { canTransact } = useAccess();
+
+  useFocusEffect(
+    useCallback(() => {
+      void refresh();
+    }, [refresh]),
+  );
 
   const asset = useMemo(
     () => assets.find(a => a.id === id),
@@ -28,6 +47,7 @@ const TradeScreen: React.FC<Props> = ({ route, navigation }) => {
 
   const [pay, setPay] = useState('');
   const [receive, setReceive] = useState('');
+  const [tradeLoading, setTradeLoading] = useState(false);
 
   const price = useMemo(
     () => (asset ? getQuote(asset).priceUsd : 0),
@@ -77,6 +97,59 @@ const TradeScreen: React.FC<Props> = ({ route, navigation }) => {
   }
 
   const isBuy = side === 'buy';
+  const cryptoBalance = getCryptoQuantityForTicker(summary, asset.fromTicker);
+  const availableUsd = summary ? Number(summary.availableUsd) || 0 : 0;
+
+  const onConfirmTrade = async () => {
+    if (!canTransact) {
+      Alert.alert(
+        'Trading disabled',
+        'Your account is not enabled for transactions yet.',
+      );
+      return;
+    }
+    const payNum = Number(pay);
+    if (!Number.isFinite(payNum) || payNum <= 0) {
+      Alert.alert('Invalid amount', 'Enter an amount greater than zero.');
+      return;
+    }
+    if (isBuy && payNum > availableUsd + 1e-6) {
+      Alert.alert(
+        'Insufficient USD',
+        'You cannot spend more than your available USD balance.',
+      );
+      return;
+    }
+    if (!isBuy && payNum > cryptoBalance + 1e-12) {
+      Alert.alert(
+        'Insufficient crypto',
+        `You only have ${formatCryptoQuantity(asset.fromTicker, cryptoBalance)} ${asset.fromTicker}.`,
+      );
+      return;
+    }
+
+    setTradeLoading(true);
+    try {
+      if (isBuy) {
+        await buyCrypto(asset.fromTicker, payNum);
+      } else {
+        await sellCrypto(asset.fromTicker, payNum);
+      }
+      await refresh();
+      Alert.alert(
+        'Done',
+        isBuy ? 'Your buy was executed at the server price.' : 'Your sell was executed at the server price.',
+        [{ text: 'OK', onPress: () => navigation.goBack() }],
+      );
+    } catch (e) {
+      Alert.alert(
+        'Trade failed',
+        e instanceof Error ? e.message : 'Could not complete trade',
+      );
+    } finally {
+      setTradeLoading(false);
+    }
+  };
 
   return (
     <KeyboardAvoidingView
@@ -105,9 +178,37 @@ const TradeScreen: React.FC<Props> = ({ route, navigation }) => {
             {formatUsdPrice(price)}
           </Text>
           <Text style={styles.summarySub}>
-            Same USD price as watchlist (CoinGecko). Quote only—not an exchange
-            order.
+            App preview uses CoinGecko. Confirm sends the order to Goldcrest — the
+            server re-prices at execution time.
           </Text>
+        </View>
+
+        <View style={styles.demoBalanceCard}>
+          <Text style={styles.demoBalanceTitle}>Your balances</Text>
+          {portfolioLoading ? (
+            <Text style={styles.demoBalanceLine}>Loading wallet…</Text>
+          ) : portfolioError ? (
+            <Text style={styles.demoBalanceError}>{portfolioError}</Text>
+          ) : (
+            <>
+              <Text style={styles.demoBalanceLine}>
+                USD available: $
+                {availableUsd.toLocaleString('en-US', {
+                  minimumFractionDigits: 2,
+                  maximumFractionDigits: 2,
+                })}
+              </Text>
+              <Text style={styles.demoBalanceLine}>
+                {asset.fromTicker} held:{' '}
+                {formatCryptoQuantity(asset.fromTicker, cryptoBalance)}{' '}
+                {asset.fromTicker}
+                {cryptoBalance === 0 ? ' (none yet)' : ''}
+              </Text>
+              <Text style={styles.demoBalanceHint}>
+                Wallet row is created the first time this loads after you sign in.
+              </Text>
+            </>
+          )}
         </View>
 
         <View style={styles.formCard}>
@@ -148,12 +249,17 @@ const TradeScreen: React.FC<Props> = ({ route, navigation }) => {
 
       <View style={styles.footer}>
         <TouchableOpacity
-          style={styles.confirmButton}
-          onPress={() => navigation.goBack()}
+          style={[styles.confirmButton, tradeLoading && styles.confirmButtonDisabled]}
+          onPress={() => void onConfirmTrade()}
+          disabled={tradeLoading || portfolioLoading}
         >
-          <Text style={styles.confirmText}>
-            Confirm {isBuy ? 'buy' : 'sell'}
-          </Text>
+          {tradeLoading ? (
+            <ActivityIndicator color="#111827" />
+          ) : (
+            <Text style={styles.confirmText}>
+              Confirm {isBuy ? 'buy' : 'sell'}
+            </Text>
+          )}
         </TouchableOpacity>
       </View>
     </KeyboardAvoidingView>
@@ -217,6 +323,34 @@ const styles = StyleSheet.create({
     color: '#6B7280',
     marginTop: 4,
   },
+  demoBalanceCard: {
+    borderRadius: 16,
+    padding: 14,
+    backgroundColor: 'rgba(245, 196, 81, 0.08)',
+    borderWidth: 1,
+    borderColor: 'rgba(245, 196, 81, 0.35)',
+  },
+  demoBalanceTitle: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#F5C451',
+    marginBottom: 8,
+  },
+  demoBalanceLine: {
+    fontSize: 13,
+    color: '#E5E7EB',
+    marginBottom: 4,
+  },
+  demoBalanceHint: {
+    fontSize: 11,
+    color: '#9CA3AF',
+    marginTop: 6,
+  },
+  demoBalanceError: {
+    fontSize: 12,
+    color: '#F87171',
+    marginTop: 4,
+  },
   formCard: {
     borderRadius: 16,
     padding: 14,
@@ -262,6 +396,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     backgroundColor: '#F5C451',
+    minHeight: 48,
+  },
+  confirmButtonDisabled: {
+    opacity: 0.7,
   },
   confirmText: {
     fontSize: 15,

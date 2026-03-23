@@ -12,10 +12,14 @@ import { SafeAreaView } from 'react-native-safe-area-context';
 import type { NativeStackScreenProps } from '@react-navigation/native-stack';
 import type { RootStackParamList } from '../../navigation';
 import { deleteAccount, getProfile, setAuthToken } from '../../services/authApi';
+import { usePortfolio } from '../../context/PortfolioContext';
+import { useAccess } from '../../context/AccessContext';
 
 type Props = NativeStackScreenProps<RootStackParamList, 'Profile'>;
 
 const ProfileScreen: React.FC<Props> = ({ navigation }) => {
+  const { clear: clearPortfolio } = usePortfolio();
+  const { setCanTransact } = useAccess();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [isVerified, setIsVerified] = useState(false);
@@ -38,6 +42,7 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         setFullName((profile.fullName as string | null) || '');
         setEmail((profile.email as string) || '');
         setIsVerified(Boolean(profile.isVerified));
+        setCanTransact(Boolean(profile.canTransact));
       } catch (e) {
         setProfileError(e instanceof Error ? e.message : 'Failed to load profile');
       } finally {
@@ -54,6 +59,8 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
         text: 'Log out',
         style: 'destructive',
         onPress: () => {
+          clearPortfolio();
+          setCanTransact(false);
           setAuthToken(null);
           navigation.reset({
             index: 0,
@@ -76,6 +83,8 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           onPress: async () => {
             try {
               await deleteAccount();
+              clearPortfolio();
+              setCanTransact(false);
               setAuthToken(null);
               navigation.reset({
                 index: 0,
