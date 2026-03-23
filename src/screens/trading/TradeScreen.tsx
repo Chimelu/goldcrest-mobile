@@ -213,7 +213,9 @@ const TradeScreen: React.FC<Props> = ({ route, navigation }) => {
 
         <View style={styles.formCard}>
           <Text style={styles.fieldLabel}>
-            You pay ({isBuy ? 'USD' : asset.toTicker})
+            {isBuy
+              ? `You spend (${asset.toTicker})`
+              : `You sell (${asset.fromTicker})`}
           </Text>
           <TextInput
             value={pay}
@@ -225,7 +227,9 @@ const TradeScreen: React.FC<Props> = ({ route, navigation }) => {
           />
 
           <Text style={[styles.fieldLabel, { marginTop: 16 }]}>
-            You receive ({isBuy ? asset.toTicker : 'USD'})
+            {isBuy
+              ? `You get (${asset.fromTicker})`
+              : `You get (${asset.toTicker})`}
           </Text>
           <TextInput
             value={receive}
