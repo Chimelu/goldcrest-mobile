@@ -25,7 +25,6 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
   const [isVerified, setIsVerified] = useState(false);
   const [loadingProfile, setLoadingProfile] = useState(true);
   const [profileError, setProfileError] = useState<string | null>(null);
-  const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
 
   const initials = useMemo(() => {
     if (!fullName.trim()) return 'U';
@@ -163,54 +162,58 @@ const ProfileScreen: React.FC<Props> = ({ navigation }) => {
           </TouchableOpacity>
         </View>
 
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionLabel}>KYC & verification</Text>
-          <View style={styles.itemRow}>
-            <View>
-              <Text style={styles.itemTitle}>Identity verification</Text>
-              <Text style={styles.itemSub}>
-                Required to increase limits and withdraw
-              </Text>
-            </View>
-            <View style={styles.chipPending}>
-              <Text style={styles.chipPendingText}>Pending</Text>
-            </View>
-          </View>
-          <TouchableOpacity
-            style={styles.primaryButton}
-            activeOpacity={0.8}
-            onPress={() => navigation.navigate('Kyc')}
-          >
-            <Text style={styles.primaryButtonText}>Start verification</Text>
-          </TouchableOpacity>
-        </View>
-
-        <View style={styles.sectionCard}>
-          <Text style={styles.sectionLabel}>Security</Text>
-          <View style={styles.itemRow}>
-            <View>
-              <Text style={styles.itemTitle}>Two-factor authentication</Text>
-              <Text style={styles.itemSub}>
-                Add an extra layer of protection
-              </Text>
+        {/*
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionLabel}>KYC & verification</Text>
+            <View style={styles.itemRow}>
+              <View>
+                <Text style={styles.itemTitle}>Identity verification</Text>
+                <Text style={styles.itemSub}>
+                  Required to increase limits and withdraw
+                </Text>
+              </View>
+              <View style={styles.chipPending}>
+                <Text style={styles.chipPendingText}>Pending</Text>
+              </View>
             </View>
             <TouchableOpacity
-              style={[
-                styles.toggle,
-                twoFactorEnabled ? styles.toggleOn : styles.toggleOff,
-              ]}
-              onPress={() => setTwoFactorEnabled(prev => !prev)}
+              style={styles.primaryButton}
               activeOpacity={0.8}
+              onPress={() => navigation.navigate('Kyc')}
             >
-              <View
-                style={[
-                  styles.toggleThumb,
-                  twoFactorEnabled ? styles.toggleThumbOn : styles.toggleThumbOff,
-                ]}
-              />
+              <Text style={styles.primaryButtonText}>Start verification</Text>
             </TouchableOpacity>
           </View>
-        </View>
+        */}
+
+        {/*
+          <View style={styles.sectionCard}>
+            <Text style={styles.sectionLabel}>Security</Text>
+            <View style={styles.itemRow}>
+              <View>
+                <Text style={styles.itemTitle}>Two-factor authentication</Text>
+                <Text style={styles.itemSub}>
+                  Add an extra layer of protection
+                </Text>
+              </View>
+              <TouchableOpacity
+                style={[
+                  styles.toggle,
+                  twoFactorEnabled ? styles.toggleOn : styles.toggleOff,
+                ]}
+                onPress={() => setTwoFactorEnabled(prev => !prev)}
+                activeOpacity={0.8}
+              >
+                <View
+                  style={[
+                    styles.toggleThumb,
+                    twoFactorEnabled ? styles.toggleThumbOn : styles.toggleThumbOff,
+                  ]}
+                />
+              </TouchableOpacity>
+            </View>
+          </View>
+        */}
 
         <View style={styles.sectionCard}>
           <Text style={styles.sectionLabel}>Account actions</Text>
