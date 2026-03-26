@@ -262,7 +262,7 @@ const CryptoAssetScreen: React.FC<Props> = ({ route, navigation }) => {
           </View>
         </View>
 
-        {heldAmount > 0 && quote ? (
+        {canTransact && heldAmount > 0 && quote ? (
           <View style={styles.demoHoldCard}>
             <Text style={styles.demoHoldLabel}>Your balance</Text>
             <Text style={styles.demoHoldMain}>
@@ -278,13 +278,13 @@ const CryptoAssetScreen: React.FC<Props> = ({ route, navigation }) => {
               at current price
             </Text>
           </View>
-        ) : (
+        ) : canTransact ? (
           <View style={styles.demoHoldCardMuted}>
             <Text style={styles.demoHoldMutedText}>
               {"You don't hold this asset yet. Buy from Trade when execution is enabled; balances sync from your account wallet."}
             </Text>
           </View>
-        )}
+        ) : null}
 
         {canTransact ? (
           <View style={styles.actionsRow}>
